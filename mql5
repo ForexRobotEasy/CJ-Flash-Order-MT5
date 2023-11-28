@@ -1,0 +1,189 @@
+
+//+------------------------------------------------------------------+
+//|                                           CJ Flash Order MT5.mq5 |
+//|                      Copyright 2021, Forex Robot Easy Team       |
+//|                                              forexroboteasy.com  |
+//+------------------------------------------------------------------+
+
+//--- Include necessary libraries
+#include <Trade\Trade.mqh>
+#include <Objects\Controls\Button\Button.mqh>
+#include <Objects\Controls\Drag\Drag.mqh>
+
+//--- Define constants
+#define RISK_AMOUNT_USD 0
+#define RISK_AMOUNT_PERCENT 1
+
+//--- Define global variables
+CTrade trade; // Trade object for executing trades
+int riskAmountType = RISK_AMOUNT_PERCENT;
+double riskAmount = 2.0; // Default risk amount in percentage
+double stopLoss = 20.0; // Default stop loss in pips
+
+//+------------------------------------------------------------------+
+//| Custom function to calculate lot size based on risk and stop loss |
+//+------------------------------------------------------------------+
+double CalculateLotSize(double riskAmount, double stopLoss)
+{
+   double accountBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   double lotSize = 0.0;
+
+   if (riskAmountType == RISK_AMOUNT_PERCENT)
+   {
+      double riskAmountUSD = accountBalance * (riskAmount / 100.0);
+      lotSize = NormalizeDouble(riskAmountUSD / (stopLoss * MarketInfo(Symbol(), MODE_TICKSIZE)), 2);
+   }
+   else if (riskAmountType == RISK_AMOUNT_USD)
+   {
+      lotSize = NormalizeDouble(riskAmount / (stopLoss * MarketInfo(Symbol(), MODE_TICKSIZE)), 2);
+   }
+
+   return lotSize;
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to place a trade based on user inputs             |
+//+------------------------------------------------------------------+
+void PlaceTrade(double lotSize, ENUM_ORDER_TYPE orderType)
+{
+   double currentPrice = SymbolInfoDouble(Symbol(), SYMBOL_BID);
+   double takeProfit = 0.0;
+
+   if (orderType == ORDER_TYPE_BUY)
+   {
+      takeProfit = currentPrice + (stopLoss * MarketInfo(Symbol(), MODE_POINT));
+   }
+   else if (orderType == ORDER_TYPE_SELL)
+   {
+      takeProfit = currentPrice - (stopLoss * MarketInfo(Symbol(), MODE_POINT));
+   }
+
+   trade.Buy(Symbol(), lotSize, currentPrice, stopLoss, takeProfit, 'CJ Flash Order MT5');
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle trade execution and confirmation       |
+//+------------------------------------------------------------------+
+void OnTrade()
+{
+   if (trade.ResultRetcode() == TRADE_RETCODE_DONE)
+   {
+      Print('Trade executed successfully');
+   }
+   else
+   {
+      Print('Trade execution failed. Error code: ', trade.ResultRetcode());
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle error scenarios                         |
+//+------------------------------------------------------------------+
+void OnError(int errorCode)
+{
+   switch (errorCode)
+   {
+      case TRADE_RETCODE_REJECT:
+         Print('Trade rejected by server');
+         break;
+      case TRADE_RETCODE_INVALID_VOLUME:
+         Print('Invalid volume for trade');
+         break;
+      case TRADE_RETCODE_CONNECTION:
+         Print('Connection to the server lost');
+         break;
+      default:
+         Print('Unknown error occurred');
+         break;
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle button click event                      |
+//+------------------------------------------------------------------+
+void OnButtonClick()
+{
+   double lotSize = CalculateLotSize(riskAmount, stopLoss);
+   ENUM_ORDER_TYPE orderType = ORDER_TYPE_BUY; // Assuming buy order for now
+
+   PlaceTrade(lotSize, orderType);
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle drag and drop event                     |
+//+------------------------------------------------------------------+
+void OnDragDrop()
+{
+   double lotSize = CalculateLotSize(riskAmount, stopLoss);
+   ENUM_ORDER_TYPE orderType = ORDER_TYPE_SELL; // Assuming sell order for now
+
+   PlaceTrade(lotSize, orderType);
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to create and initialize the user interface       |
+//+------------------------------------------------------------------+
+void InitializeUI()
+{
+   CButton openOrderButton;
+   CButton::Create(0, 'Open Order', 0, 0, 100, 30);
+   openOrderButton.SetOnClick(OnButtonClick);
+
+   CDrag dragAndDrop;
+   CDrag::Create(0, 'Drag and Drop', 0, 40, 100, 30);
+   dragAndDrop.SetOnDrop(OnDragDrop);
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle start event                             |
+//+------------------------------------------------------------------+
+void OnStart()
+{
+   InitializeUI();
+
+   trade.SetDeviationInPoints(10);
+   trade.SetCallback(OnTrade);
+   trade.SetErrorHandler(OnError);
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle deinitialization event                  |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   trade.ResetLastError();
+   trade.SetCallback(NULL);
+   trade.SetErrorHandler(NULL);
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle init event                              |
+//+------------------------------------------------------------------+
+void OnInit()
+{
+   OnStart();
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle tick event                              |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   trade.Check();
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle deinitialization event                  |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+
+}
+
+//+------------------------------------------------------------------+
+//| Custom function to handle timer event                             |
+//+------------------------------------------------------------------+
+void OnTimer()
+{
+
+}
